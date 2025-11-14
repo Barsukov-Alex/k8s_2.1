@@ -1,0 +1,53 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage-class # Имя StorageClass
+provisioner: kubernetes.io/no-provisioner # Нет автоматического развёртывания
+volumeBindingMode: WaitForFirstConsumer # Ожидание, пока не появится потребитель
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: local-pvc # Имя PVC
+spec:
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # Объем хранилища, который вы хотите передать в контейнер
+  storageClassName: local-storage-class # Имя StorageClass, должно совпадать с объявленным ранее
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-exchange-sc
+spec:
+  replicas: 1 # Укажите количество реплик
+  selector:
+    matchLabels:
+      app: data-exchange # Метка для селектора
+  template:
+    metadata:
+      labels:
+        app: data-exchange # Метка из selector.matchLabels
+    spec:
+      containers:
+      - name: busybox-container # Имя первого контейнера
+        image: busybox
+        command: ["/bin/sh", "-c"] 
+        args: ["while true; do echo $(date) >> /mnt/data/timestamp.txt; sleep 5; done"] # Запись данных в файл каждые 5 секунд
+        volumeMounts:
+        - name: local-storage # Имя монтируемого раздела. Должно совпадать с именем хранилища, объявленного на уровне пода
+          mountPath: /mnt/data # Путь монтирования хранилища внутри контейнера 1
+      - name: multitool-container # Имя второго контейнера
+        image: busybox
+        command: ["/bin/sh", "-c"]
+        args: ["tail -f /mnt/data/timestamp.txt"] # Чтение данных из файла
+        volumeMounts:
+        - name: local-storage # Имя монтируемого раздела. Должно совпадать с именем хранилища, объявленного на уровне пода
+          mountPath: /mnt/data # Путь монтирования хранилища внутри контейнера 2
+      volumes:
+      - name: local-storage # Имя монтируемого раздела хранилища
+        persistentVolumeClaim:
+          claimName: local-pvc # Совпадает с именем PVC объявленного ранее

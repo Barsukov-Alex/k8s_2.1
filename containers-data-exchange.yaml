@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-exchange
+spec:
+  replicas: 1  # Указываем количество реплик
+  selector:
+    matchLabels:
+      app: data-exchange  # Метка для селектора
+  template:
+    metadata:
+      labels:
+        app: data-exchange  # Метка из selector.matchLabels
+    spec:
+      containers:
+      - name: writer  # Имя первого контейнера
+        image: busybox
+        command: ["/bin/sh", "-c"] 
+        args: ["while true; do echo $(date) >> /data/exchange.txt; sleep 5; done"]  # Команда записи данных в файл каждые 5 секунд
+        volumeMounts:
+        - name: shared-data  # Имя монтируемого раздела
+          mountPath: /data  # Путь монтирования эфемерного хранилища внутри контейнера 1
+      - name: reader  # Имя второго контейнера
+        image: busybox
+        command: ["/bin/sh", "-c"]
+        args: ["tail -f /data/exchange.txt"]  # Команда для чтения данных из файла
+        volumeMounts:
+        - name: shared-data  # Имя монтируемого раздела
+          mountPath: /data  # Путь монтирования эфемерного хранилища внутри контейнера 2
+      volumes:
+      - name: shared-data  # Имя монтируемого раздела эфемерного хранилища
+        emptyDir: {}  # Определяем эфемерное хранилище, которое работает только внутри пода
